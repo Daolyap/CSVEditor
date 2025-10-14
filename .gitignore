@@ -26,7 +26,6 @@ wheels/
 
 # PyInstaller
 *.manifest
-*.spec
 
 # Virtual environments
 venv/
@@ -47,3 +46,10 @@ Thumbs.db
 # CSV test files (optional)
 *.csv
 !example.csv
+
+# WiX Toolset build artifacts
+installer/obj/
+installer/*.wixobj
+installer/*.wixpdb
+installer/*.msi
+installer/install.log

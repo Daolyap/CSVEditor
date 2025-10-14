@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+
+  <!-- Product Definition -->
+  <Product Id="*"
+           Name="CSV Editor"
+           Language="1033"
+           Version="1.0.0.0"
+           Manufacturer="CSV Editor Team"
+           UpgradeCode="A1B2C3D4-E5F6-47A8-B9C0-D1E2F3A4B5C6">
+
+    <Package InstallerVersion="200"
+             Compressed="yes"
+             InstallScope="perUser"
+             Description="CSV Editor - Professional CSV File Editor"
+             Comments="A modern, full-featured CSV editor with mass operations support" />
+
+    <!-- Upgrade settings -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+
+    <!-- Media -->
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Icon for Add/Remove Programs -->
+    <Icon Id="CSVEditorIcon" SourceFile="..\csv.ico" />
+    <Property Id="ARPPRODUCTICON" Value="CSVEditorIcon" />
+
+    <!-- Add/Remove Programs information -->
+    <Property Id="ARPHELPLINK" Value="https://github.com/Daolyap/CSVEditor" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/Daolyap/CSVEditor" />
+    <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" />
+
+    <!-- Features -->
+    <Feature Id="ProductFeature" Title="CSV Editor" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+      <ComponentGroupRef Id="ApplicationShortcut" />
+    </Feature>
+
+    <!-- UI -->
+    <UIRef Id="WixUI_InstallDir" />
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+
+    <!-- Custom license - using default for now -->
+    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+
+  </Product>
+
+  <!-- Directory Structure -->
+  <Fragment>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+
+      <!-- Install to LocalAppData\CSVEditor -->
+      <Directory Id="LocalAppDataFolder">
+        <Directory Id="INSTALLFOLDER" Name="CSVEditor">
+          <!-- Application files will be placed here -->
+        </Directory>
+      </Directory>
+
+      <!-- Start Menu -->
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="CSV Editor" />
+      </Directory>
+
+      <!-- Desktop shortcut -->
+      <Directory Id="DesktopFolder" Name="Desktop" />
+
+    </Directory>
+  </Fragment>
+
+  <!-- Components -->
+  <Fragment>
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+
+      <!-- Main executable -->
+      <Component Id="CSVEditorExe" Guid="B2C3D4E5-F6A7-48B9-C0D1-E2F3A4B5C6D7">
+        <File Id="CSVEditorExeFile"
+              Source="..\dist\CSVEditor.exe"
+              KeyPath="yes"
+              Checksum="yes">
+
+          <!-- File association for .csv files -->
+          <ProgId Id="CSVEditor.csv" Description="CSV File" Icon="CSVEditorIcon">
+            <Extension Id="csv" ContentType="text/csv">
+              <Verb Id="open" Command="Open with CSV Editor" TargetFile="CSVEditorExeFile" Argument='"%1"' />
+            </Extension>
+          </ProgId>
+
+        </File>
+
+        <!-- Registry entry for uninstall -->
+        <RegistryValue Root="HKCU"
+                      Key="Software\CSVEditor"
+                      Name="InstallPath"
+                      Type="string"
+                      Value="[INSTALLFOLDER]"
+                      KeyPath="no" />
+
+      </Component>
+
+      <!-- Icon file -->
+      <Component Id="CSVEditorIcon" Guid="C3D4E5F6-A7B8-49C0-D1E2-F3A4B5C6D7E8">
+        <File Id="IconFile" Source="..\csv.ico" KeyPath="yes" />
+      </Component>
+
+    </ComponentGroup>
+
+    <!-- Start Menu and Desktop Shortcuts -->
+    <ComponentGroup Id="ApplicationShortcut" Directory="ApplicationProgramsFolder">
+
+      <!-- Start Menu Shortcut -->
+      <Component Id="ApplicationShortcutComponent" Guid="D4E5F6A7-B8C9-40D1-E2F3-A4B5C6D7E8F9">
+        <Shortcut Id="ApplicationStartMenuShortcut"
+                  Name="CSV Editor"
+                  Description="Professional CSV File Editor"
+                  Target="[INSTALLFOLDER]CSVEditor.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="CSVEditorIcon" />
+
+        <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall" />
+
+        <RegistryValue Root="HKCU"
+                      Key="Software\CSVEditor"
+                      Name="StartMenu"
+                      Type="integer"
+                      Value="1"
+                      KeyPath="yes" />
+      </Component>
+
+      <!-- Desktop Shortcut (optional) -->
+      <Component Id="DesktopShortcutComponent" Guid="E5F6A7B8-C9D0-41E2-F3A4-B5C6D7E8F9A0" Directory="DesktopFolder">
+        <Shortcut Id="DesktopShortcut"
+                  Name="CSV Editor"
+                  Description="Professional CSV File Editor"
+                  Target="[INSTALLFOLDER]CSVEditor.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="CSVEditorIcon" />
+
+        <RegistryValue Root="HKCU"
+                      Key="Software\CSVEditor"
+                      Name="Desktop"
+                      Type="integer"
+                      Value="1"
+                      KeyPath="yes" />
+      </Component>
+
+    </ComponentGroup>
+  </Fragment>
+
+</Wix>
