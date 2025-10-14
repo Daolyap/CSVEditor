@@ -50,66 +50,89 @@ class CSVDataModel:
         return False
 
     def load_csv(self, filepath):
-        """Load CSV file with robust error handling"""
-        # Try multiple strategies to load the CSV
-        strategies = [
-            # Strategy 1: Standard CSV with error handling
-            lambda: pd.read_csv(filepath, dtype=str, keep_default_na=False,
-                               on_bad_lines='skip', encoding='utf-8'),
+        """Load CSV file with robust error handling and auto header detection"""
 
-            # Strategy 2: Try different encoding
-            lambda: pd.read_csv(filepath, dtype=str, keep_default_na=False,
-                               on_bad_lines='skip', encoding='latin-1'),
-
-            # Strategy 3: Try with different separator
-            lambda: pd.read_csv(filepath, dtype=str, keep_default_na=False,
-                               on_bad_lines='skip', sep=None, engine='python'),
-
-            # Strategy 4: Force load with errors ignored, fill missing columns
-            lambda: pd.read_csv(filepath, dtype=str, keep_default_na=False,
-                               on_bad_lines='skip', encoding='utf-8-sig'),
-
-            # Strategy 5: Tab-separated
-            lambda: pd.read_csv(filepath, dtype=str, keep_default_na=False,
-                               on_bad_lines='skip', sep='\t'),
-
-            # Strategy 6: Semicolon-separated
-            lambda: pd.read_csv(filepath, dtype=str, keep_default_na=False,
-                               on_bad_lines='skip', sep=';'),
-
-            # Strategy 7: Use Python engine with more flexibility
-            lambda: pd.read_csv(filepath, dtype=str, keep_default_na=False,
-                               engine='python', on_bad_lines='skip',
-                               encoding='utf-8', quoting=csv.QUOTE_MINIMAL),
-        ]
-
-        last_error = None
-        for i, strategy in enumerate(strategies):
+        def try_load_strategy(skiprows=None, encoding='utf-8', sep=','):
+            """Helper function to try loading with specific parameters"""
             try:
-                self.df = strategy()
+                import warnings
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    df = pd.read_csv(
+                        filepath,
+                        dtype=str,
+                        keep_default_na=False,
+                        on_bad_lines='skip',
+                        encoding=encoding,
+                        sep=sep,
+                        skiprows=skiprows,
+                        engine='python' if sep is None else 'c'
+                    )
+                return df
+            except:
+                return None
 
-                # Ensure we have at least some data
-                if len(self.df.columns) == 0:
-                    self.df = pd.DataFrame({'Column 1': ['']})
+        # Try different combinations of encodings and separators
+        encodings = ['utf-8', 'latin-1', 'utf-8-sig', 'cp1252']
+        separators = [',', '\t', ';', None]  # None means auto-detect
 
-                # Fill any NaN values with empty strings
-                self.df = self.df.fillna('')
+        best_df = None
+        best_score = -1
 
-                # Ensure all column names are strings
-                self.df.columns = [str(col) if col else f"Column {i+1}"
-                                  for i, col in enumerate(self.df.columns)]
+        # First, try different encodings and separators WITHOUT skipping rows
+        for encoding in encodings:
+            for sep in separators:
+                df = try_load_strategy(skiprows=None, encoding=encoding, sep=sep)
+                if df is not None and len(df) > 0:
+                    # Score based on: number of rows, number of columns, data completeness
+                    score = len(df) * len(df.columns)
+                    if score > best_score:
+                        best_score = score
+                        best_df = df.copy()
 
-                self.current_file = filepath
-                self.modified = False
-                self.undo_stack.clear()
-                self.redo_stack.clear()
-                return True
-            except Exception as e:
-                last_error = e
-                continue
+        # Now try with skipping initial rows (in case of metadata)
+        # Try skipping 0-10 rows to find the real header
+        for skip in range(1, 11):
+            for encoding in encodings:
+                for sep in separators:
+                    df = try_load_strategy(skiprows=range(skip), encoding=encoding, sep=sep)
+                    if df is not None and len(df) > 0:
+                        # Higher score for more data rows and columns
+                        score = len(df) * len(df.columns) * 1.1  # Slight bonus for skiprow strategies
+                        if score > best_score:
+                            best_score = score
+                            best_df = df.copy()
 
-        # If all strategies failed, raise the last error
-        raise Exception(f"Could not load CSV file. Last error: {str(last_error)}")
+        if best_df is None:
+            raise Exception("Could not load CSV file with any strategy")
+
+        self.df = best_df
+
+        # Ensure we have at least some data
+        if len(self.df.columns) == 0:
+            self.df = pd.DataFrame({'Column 1': ['']})
+
+        # Fill any NaN values with empty strings
+        self.df = self.df.fillna('')
+
+        # Ensure all column names are strings and handle duplicates
+        cols = []
+        for i, col in enumerate(self.df.columns):
+            col_name = str(col) if col and str(col).strip() else f"Column {i+1}"
+            # Handle duplicate column names
+            if col_name in cols:
+                j = 1
+                while f"{col_name}_{j}" in cols:
+                    j += 1
+                col_name = f"{col_name}_{j}"
+            cols.append(col_name)
+        self.df.columns = cols
+
+        self.current_file = filepath
+        self.modified = False
+        self.undo_stack.clear()
+        self.redo_stack.clear()
+        return True
 
     def save_csv(self, filepath=None):
         """Save CSV file"""
