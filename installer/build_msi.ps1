@@ -1,19 +1,23 @@
 # Build script for CSV Editor MSI installer
-# Requires WiX Toolset v3 or v4 to be installed
+# Requires WiX Toolset v4 to be installed
 
-Write-Host "Building CSV Editor MSI Installer..." -ForegroundColor Cyan
+Write-Host "Building CSV Editor MSI Installer with WiX 4.0..." -ForegroundColor Cyan
 Write-Host ""
 
-# Check if WiX is installed
-$candleExists = Get-Command candle.exe -ErrorAction SilentlyContinue
-if (-not $candleExists) {
-    Write-Host "ERROR: WiX Toolset not found!" -ForegroundColor Red
+# Check if WiX 4.0 is installed
+$wixExists = Get-Command wix -ErrorAction SilentlyContinue
+if (-not $wixExists) {
+    Write-Host "ERROR: WiX Toolset 4.0 not found!" -ForegroundColor Red
     Write-Host ""
-    Write-Host "Please install WiX Toolset from:"
-    Write-Host "  - WiX v3: https://github.com/wixtoolset/wix3/releases"
-    Write-Host "  - WiX v4: https://github.com/wixtoolset/wix4/releases"
+    Write-Host "Please install WiX Toolset v4 using one of these methods:" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "After installation, make sure the WiX bin directory is in your PATH."
+    Write-Host "Method 1 - .NET Tool (Recommended):" -ForegroundColor Cyan
+    Write-Host "  dotnet tool install --global wix" -ForegroundColor White
+    Write-Host ""
+    Write-Host "Method 2 - Download installer:" -ForegroundColor Cyan
+    Write-Host "  https://github.com/wixtoolset/wix4/releases" -ForegroundColor White
+    Write-Host ""
+    Write-Host "After installation, restart your terminal." -ForegroundColor Yellow
     exit 1
 }
 
@@ -24,26 +28,13 @@ if (Test-Path "*.wixobj") { Remove-Item "*.wixobj" }
 if (Test-Path "*.wixpdb") { Remove-Item "*.wixpdb" }
 if (Test-Path "*.msi") { Remove-Item "*.msi" }
 
-# Create obj directory
-New-Item -ItemType Directory -Force -Path "obj" | Out-Null
-
 Write-Host ""
-Write-Host "Step 1: Compiling WiX source file..." -ForegroundColor Yellow
-& candle.exe -arch x64 -out obj\CSVEditor.wixobj CSVEditor.wxs
+Write-Host "Building MSI with WiX 4.0..." -ForegroundColor Yellow
+& wix build -arch x64 -ext WixToolset.UI.wixext -out CSVEditor.msi CSVEditor.wxs
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""
-    Write-Host "ERROR: Compilation failed!" -ForegroundColor Red
-    exit 1
-}
-
-Write-Host ""
-Write-Host "Step 2: Linking and creating MSI..." -ForegroundColor Yellow
-& light.exe -ext WixUIExtension -out CSVEditor.msi obj\CSVEditor.wixobj
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Host ""
-    Write-Host "ERROR: Linking failed!" -ForegroundColor Red
+    Write-Host "ERROR: Build failed!" -ForegroundColor Red
     exit 1
 }
 

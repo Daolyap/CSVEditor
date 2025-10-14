@@ -1,20 +1,24 @@
 @echo off
 REM Build script for CSV Editor MSI installer
-REM Requires WiX Toolset v3 or v4 to be installed
+REM Requires WiX Toolset v4 to be installed
 
-echo Building CSV Editor MSI Installer...
+echo Building CSV Editor MSI Installer with WiX 4.0...
 echo.
 
-REM Check if WiX is installed
-where candle >nul 2>&1
+REM Check if WiX 4.0 is installed
+where wix >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo ERROR: WiX Toolset not found!
+    echo ERROR: WiX Toolset 4.0 not found!
     echo.
-    echo Please install WiX Toolset from:
-    echo   - WiX v3: https://github.com/wixtoolset/wix3/releases
-    echo   - WiX v4: https://github.com/wixtoolset/wix4/releases
+    echo Please install WiX Toolset v4 using one of these methods:
     echo.
-    echo After installation, make sure the WiX bin directory is in your PATH.
+    echo Method 1 - .NET Tool (Recommended):
+    echo   dotnet tool install --global wix
+    echo.
+    echo Method 2 - Download installer:
+    echo   https://github.com/wixtoolset/wix4/releases
+    echo.
+    echo After installation, restart your terminal.
     exit /b 1
 )
 
@@ -25,22 +29,12 @@ if exist *.wixobj del /q *.wixobj
 if exist *.wixpdb del /q *.wixpdb
 if exist *.msi del /q *.msi
 
-REM Create obj directory
-if not exist obj mkdir obj
-
 echo.
-echo Step 1: Compiling WiX source file...
-candle.exe -arch x64 -out obj\CSVEditor.wixobj CSVEditor.wxs
+echo Building MSI with WiX 4.0...
+wix build -arch x64 -ext WixToolset.UI.wixext -out CSVEditor.msi CSVEditor.wxs
 if %ERRORLEVEL% NEQ 0 (
-    echo ERROR: Compilation failed!
-    exit /b 1
-)
-
-echo.
-echo Step 2: Linking and creating MSI...
-light.exe -ext WixUIExtension -out CSVEditor.msi obj\CSVEditor.wixobj
-if %ERRORLEVEL% NEQ 0 (
-    echo ERROR: Linking failed!
+    echo.
+    echo ERROR: Build failed!
     exit /b 1
 )
 

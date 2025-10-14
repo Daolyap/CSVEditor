@@ -4,30 +4,34 @@ This directory contains the WiX Toolset configuration and build scripts for crea
 
 ## Prerequisites
 
-### WiX Toolset Installation
+### WiX Toolset v4 Installation
 
-You need to install WiX Toolset to build the MSI installer:
+This project uses **WiX Toolset v4.0**, which has a different command-line interface than WiX 3.x.
 
-**Option 1: WiX Toolset v3 (Stable)**
-- Download from: https://github.com/wixtoolset/wix3/releases
-- Download the `.exe` installer and run it
-- Version 3.11.2 or later recommended
+**Installation Method 1: .NET Tool (Recommended)**
+```cmd
+dotnet tool install --global wix
+```
 
-**Option 2: WiX Toolset v4 (Latest)**
+**Installation Method 2: Download Installer**
 - Download from: https://github.com/wixtoolset/wix4/releases
-- Install via: `dotnet tool install --global wix`
+- Run the installer
 
-After installation, ensure the WiX `bin` directory is in your system PATH.
+**Installation Method 3: Via winget**
+```cmd
+winget install WixToolset.WiX
+```
 
 ### Verify Installation
 
 Open a command prompt and run:
 ```cmd
-candle.exe -?
-light.exe -?
+wix --version
 ```
 
-If both commands work, WiX is properly installed.
+If the command shows a version number, WiX 4.0 is properly installed.
+
+**Note**: WiX 4.0 uses the unified `wix` command instead of separate `candle.exe` and `light.exe` executables from WiX 3.x.
 
 ## Building the MSI
 
@@ -45,19 +49,18 @@ cd installer
 .\build_msi.ps1
 ```
 
-### Manual Build
+### Manual Build (WiX 4.0)
 
-If you prefer to build manually:
+If you prefer to build manually with WiX 4.0:
 
 ```cmd
 cd installer
 
-REM Step 1: Compile the WiX source
-candle.exe -arch x64 -out obj\CSVEditor.wixobj CSVEditor.wxs
-
-REM Step 2: Link and create MSI
-light.exe -ext WixUIExtension -out CSVEditor.msi obj\CSVEditor.wixobj
+REM Build MSI with WiX 4.0 unified command
+wix build -arch x64 -ext WixToolset.UI.wixext -out CSVEditor.msi CSVEditor.wxs
 ```
+
+**Note**: WiX 4.0 uses a single `wix build` command that combines compilation and linking in one step.
 
 ## Installation Features
 
