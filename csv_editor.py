@@ -50,16 +50,66 @@ class CSVDataModel:
         return False
 
     def load_csv(self, filepath):
-        """Load CSV file"""
-        try:
-            self.df = pd.read_csv(filepath, dtype=str, keep_default_na=False)
-            self.current_file = filepath
-            self.modified = False
-            self.undo_stack.clear()
-            self.redo_stack.clear()
-            return True
-        except Exception as e:
-            raise Exception(f"Error loading CSV: {str(e)}")
+        """Load CSV file with robust error handling"""
+        # Try multiple strategies to load the CSV
+        strategies = [
+            # Strategy 1: Standard CSV with error handling
+            lambda: pd.read_csv(filepath, dtype=str, keep_default_na=False,
+                               on_bad_lines='skip', encoding='utf-8'),
+
+            # Strategy 2: Try different encoding
+            lambda: pd.read_csv(filepath, dtype=str, keep_default_na=False,
+                               on_bad_lines='skip', encoding='latin-1'),
+
+            # Strategy 3: Try with different separator
+            lambda: pd.read_csv(filepath, dtype=str, keep_default_na=False,
+                               on_bad_lines='skip', sep=None, engine='python'),
+
+            # Strategy 4: Force load with errors ignored, fill missing columns
+            lambda: pd.read_csv(filepath, dtype=str, keep_default_na=False,
+                               on_bad_lines='skip', encoding='utf-8-sig'),
+
+            # Strategy 5: Tab-separated
+            lambda: pd.read_csv(filepath, dtype=str, keep_default_na=False,
+                               on_bad_lines='skip', sep='\t'),
+
+            # Strategy 6: Semicolon-separated
+            lambda: pd.read_csv(filepath, dtype=str, keep_default_na=False,
+                               on_bad_lines='skip', sep=';'),
+
+            # Strategy 7: Use Python engine with more flexibility
+            lambda: pd.read_csv(filepath, dtype=str, keep_default_na=False,
+                               engine='python', on_bad_lines='skip',
+                               encoding='utf-8', quoting=csv.QUOTE_MINIMAL),
+        ]
+
+        last_error = None
+        for i, strategy in enumerate(strategies):
+            try:
+                self.df = strategy()
+
+                # Ensure we have at least some data
+                if len(self.df.columns) == 0:
+                    self.df = pd.DataFrame({'Column 1': ['']})
+
+                # Fill any NaN values with empty strings
+                self.df = self.df.fillna('')
+
+                # Ensure all column names are strings
+                self.df.columns = [str(col) if col else f"Column {i+1}"
+                                  for i, col in enumerate(self.df.columns)]
+
+                self.current_file = filepath
+                self.modified = False
+                self.undo_stack.clear()
+                self.redo_stack.clear()
+                return True
+            except Exception as e:
+                last_error = e
+                continue
+
+        # If all strategies failed, raise the last error
+        raise Exception(f"Could not load CSV file. Last error: {str(last_error)}")
 
     def save_csv(self, filepath=None):
         """Save CSV file"""
@@ -167,24 +217,29 @@ class CSVEditorWindow(QMainWindow):
         self.setWindowTitle("CSV Editor")
         self.setGeometry(100, 100, 1200, 800)
 
-        # Apply modern stylesheet
+        # Apply modern stylesheet with explicit colors
         self.setStyleSheet("""
             QMainWindow {
                 background-color: #f5f5f5;
+                color: #000000;
             }
             QTableWidget {
                 background-color: white;
+                color: #000000;
                 alternate-background-color: #f9f9f9;
                 selection-background-color: #0078d4;
+                selection-color: white;
                 gridline-color: #e0e0e0;
                 border: 1px solid #d0d0d0;
                 border-radius: 4px;
             }
             QTableWidget::item {
                 padding: 5px;
+                color: #000000;
             }
             QHeaderView::section {
                 background-color: #e8e8e8;
+                color: #000000;
                 padding: 6px;
                 border: none;
                 border-right: 1px solid #d0d0d0;
@@ -193,12 +248,14 @@ class CSVEditorWindow(QMainWindow):
             }
             QToolBar {
                 background-color: #ffffff;
+                color: #000000;
                 border-bottom: 1px solid #d0d0d0;
                 spacing: 3px;
                 padding: 5px;
             }
             QToolButton {
                 background-color: transparent;
+                color: #000000;
                 border: 1px solid transparent;
                 border-radius: 4px;
                 padding: 5px;
@@ -206,25 +263,69 @@ class CSVEditorWindow(QMainWindow):
             }
             QToolButton:hover {
                 background-color: #e8e8e8;
+                color: #000000;
                 border: 1px solid #d0d0d0;
             }
             QToolButton:pressed {
                 background-color: #d0d0d0;
+                color: #000000;
             }
             QMenuBar {
                 background-color: #ffffff;
+                color: #000000;
                 border-bottom: 1px solid #d0d0d0;
+            }
+            QMenuBar::item {
+                color: #000000;
             }
             QMenuBar::item:selected {
                 background-color: #e8e8e8;
+                color: #000000;
             }
             QMenu {
                 background-color: white;
+                color: #000000;
                 border: 1px solid #d0d0d0;
+            }
+            QMenu::item {
+                color: #000000;
             }
             QMenu::item:selected {
                 background-color: #0078d4;
                 color: white;
+            }
+            QInputDialog {
+                background-color: white;
+                color: #000000;
+            }
+            QLabel {
+                color: #000000;
+            }
+            QLineEdit {
+                background-color: white;
+                color: #000000;
+                border: 1px solid #d0d0d0;
+                padding: 4px;
+            }
+            QPushButton {
+                background-color: #e8e8e8;
+                color: #000000;
+                border: 1px solid #d0d0d0;
+                padding: 6px 12px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #d0d0d0;
+            }
+            QPushButton:pressed {
+                background-color: #b8b8b8;
+            }
+            QMessageBox {
+                background-color: white;
+                color: #000000;
+            }
+            QMessageBox QLabel {
+                color: #000000;
             }
         """)
 
