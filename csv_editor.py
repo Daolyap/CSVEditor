@@ -5,7 +5,8 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QTableWidget, QTableWidgetItem,
     QVBoxLayout, QWidget, QFileDialog, QMessageBox, QToolBar,
-    QMenu, QInputDialog, QHeaderView
+    QMenu, QInputDialog, QHeaderView, QDialog, QLabel, QLineEdit,
+    QPushButton, QHBoxLayout, QCheckBox
 )
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QAction, QKeySequence, QIcon
@@ -189,6 +190,16 @@ class CSVDataModel:
             self.save_state()
             self.df = self.df.drop(self.df.index[row]).reset_index(drop=True)
 
+    def delete_rows(self, rows):
+        """Delete multiple rows"""
+        if rows:
+            self.save_state()
+            # Sort in reverse to delete from end to beginning
+            rows_sorted = sorted(set(rows), reverse=True)
+            for row in rows_sorted:
+                if 0 <= row < len(self.df):
+                    self.df = self.df.drop(self.df.index[row]).reset_index(drop=True)
+
     def add_column(self, position=None, name=None):
         """Add column at position (default: end)"""
         self.save_state()
@@ -208,11 +219,69 @@ class CSVDataModel:
             self.save_state()
             self.df = self.df.drop(self.df.columns[col], axis=1)
 
+    def delete_columns(self, cols):
+        """Delete multiple columns"""
+        if cols:
+            self.save_state()
+            # Sort in reverse to delete from end to beginning
+            cols_sorted = sorted(set(cols), reverse=True)
+            for col in cols_sorted:
+                if 0 <= col < len(self.df.columns):
+                    self.df = self.df.drop(self.df.columns[col], axis=1)
+
     def rename_column(self, col, new_name):
         """Rename column"""
         if 0 <= col < len(self.df.columns):
             self.save_state()
             self.df.columns.values[col] = new_name
+
+    def clear_cells(self, cells):
+        """Clear multiple cells"""
+        if cells:
+            self.save_state()
+            for row, col in cells:
+                if 0 <= row < len(self.df) and 0 <= col < len(self.df.columns):
+                    self.df.iloc[row, col] = ''
+
+    def fill_cells(self, cells, value):
+        """Fill multiple cells with a value"""
+        if cells:
+            self.save_state()
+            for row, col in cells:
+                if 0 <= row < len(self.df) and 0 <= col < len(self.df.columns):
+                    self.df.iloc[row, col] = value
+
+    def find_replace(self, find_text, replace_text, match_case=False, whole_cell=False):
+        """Find and replace text across all cells"""
+        self.save_state()
+        count = 0
+        for row in range(len(self.df)):
+            for col in range(len(self.df.columns)):
+                cell_value = str(self.df.iloc[row, col])
+
+                if whole_cell:
+                    if match_case:
+                        if cell_value == find_text:
+                            self.df.iloc[row, col] = replace_text
+                            count += 1
+                    else:
+                        if cell_value.lower() == find_text.lower():
+                            self.df.iloc[row, col] = replace_text
+                            count += 1
+                else:
+                    if match_case:
+                        if find_text in cell_value:
+                            self.df.iloc[row, col] = cell_value.replace(find_text, replace_text)
+                            count += cell_value.count(find_text)
+                    else:
+                        # Case-insensitive replace
+                        import re
+                        pattern = re.compile(re.escape(find_text), re.IGNORECASE)
+                        matches = len(pattern.findall(cell_value))
+                        if matches > 0:
+                            self.df.iloc[row, col] = pattern.sub(replace_text, cell_value)
+                            count += matches
+        return count
 
     @property
     def row_count(self):
@@ -366,6 +435,14 @@ class CSVEditorWindow(QMainWindow):
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self.show_context_menu)
         self.table.itemChanged.connect(self.on_item_changed)
+
+        # Enable multi-selection
+        self.table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
+
+        # Clipboard for copy/paste
+        self.clipboard_data = None
+
         layout.addWidget(self.table)
 
         # Create menu bar
@@ -424,6 +501,47 @@ class CSVEditorWindow(QMainWindow):
         redo_action.setShortcut(QKeySequence.StandardKey.Redo)
         redo_action.triggered.connect(self.redo)
         edit_menu.addAction(redo_action)
+
+        edit_menu.addSeparator()
+
+        copy_action = QAction("Copy", self)
+        copy_action.setShortcut(QKeySequence.StandardKey.Copy)
+        copy_action.triggered.connect(self.copy_selection)
+        edit_menu.addAction(copy_action)
+
+        cut_action = QAction("Cut", self)
+        cut_action.setShortcut(QKeySequence.StandardKey.Cut)
+        cut_action.triggered.connect(self.cut_selection)
+        edit_menu.addAction(cut_action)
+
+        paste_action = QAction("Paste", self)
+        paste_action.setShortcut(QKeySequence.StandardKey.Paste)
+        paste_action.triggered.connect(self.paste_selection)
+        edit_menu.addAction(paste_action)
+
+        delete_action = QAction("Clear Selected Cells", self)
+        delete_action.setShortcut(QKeySequence.StandardKey.Delete)
+        delete_action.triggered.connect(self.clear_selected_cells)
+        edit_menu.addAction(delete_action)
+
+        edit_menu.addSeparator()
+
+        find_replace_action = QAction("Find && Replace...", self)
+        find_replace_action.setShortcut(QKeySequence.StandardKey.Find)
+        find_replace_action.triggered.connect(self.find_replace_dialog)
+        edit_menu.addAction(find_replace_action)
+
+        edit_menu.addSeparator()
+
+        fill_down_action = QAction("Fill Down", self)
+        fill_down_action.setShortcut("Ctrl+Down")
+        fill_down_action.triggered.connect(self.fill_down)
+        edit_menu.addAction(fill_down_action)
+
+        fill_right_action = QAction("Fill Right", self)
+        fill_right_action.setShortcut("Ctrl+Right")
+        fill_right_action.triggered.connect(self.fill_right)
+        edit_menu.addAction(fill_right_action)
 
         # Row menu
         row_menu = menubar.addMenu("Row")
@@ -522,6 +640,37 @@ class CSVEditorWindow(QMainWindow):
     def show_context_menu(self, position):
         """Show context menu"""
         menu = QMenu()
+        selected_items = self.table.selectedItems()
+
+        # Edit operations
+        if selected_items:
+            copy_action = QAction("Copy", self)
+            copy_action.triggered.connect(self.copy_selection)
+            menu.addAction(copy_action)
+
+            cut_action = QAction("Cut", self)
+            cut_action.triggered.connect(self.cut_selection)
+            menu.addAction(cut_action)
+
+            paste_action = QAction("Paste", self)
+            paste_action.triggered.connect(self.paste_selection)
+            menu.addAction(paste_action)
+
+            clear_action = QAction("Clear Selected Cells", self)
+            clear_action.triggered.connect(self.clear_selected_cells)
+            menu.addAction(clear_action)
+
+            menu.addSeparator()
+
+            fill_down_action = QAction("Fill Down", self)
+            fill_down_action.triggered.connect(self.fill_down)
+            menu.addAction(fill_down_action)
+
+            fill_right_action = QAction("Fill Right", self)
+            fill_right_action.triggered.connect(self.fill_right)
+            menu.addAction(fill_right_action)
+
+            menu.addSeparator()
 
         # Row operations
         add_row_action = QAction("Add Row", self)
@@ -532,8 +681,8 @@ class CSVEditorWindow(QMainWindow):
         insert_row_action.triggered.connect(self.insert_row)
         menu.addAction(insert_row_action)
 
-        delete_row_action = QAction("Delete Row", self)
-        delete_row_action.triggered.connect(self.delete_row)
+        delete_row_action = QAction("Delete Selected Rows", self)
+        delete_row_action.triggered.connect(self.delete_selected_rows)
         menu.addAction(delete_row_action)
 
         menu.addSeparator()
@@ -547,8 +696,8 @@ class CSVEditorWindow(QMainWindow):
         insert_col_action.triggered.connect(self.insert_column)
         menu.addAction(insert_col_action)
 
-        delete_col_action = QAction("Delete Column", self)
-        delete_col_action.triggered.connect(self.delete_column)
+        delete_col_action = QAction("Delete Selected Columns", self)
+        delete_col_action.triggered.connect(self.delete_selected_columns)
         menu.addAction(delete_col_action)
 
         rename_col_action = QAction("Rename Column", self)
@@ -732,6 +881,216 @@ class CSVEditorWindow(QMainWindow):
                 self.refresh_table()
         else:
             QMessageBox.warning(self, "Warning", "Please select a column to rename.")
+
+    def delete_selected_rows(self):
+        """Delete all selected rows"""
+        selected_items = self.table.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, "Warning", "Please select rows to delete.")
+            return
+
+        # Get unique row numbers
+        rows = sorted(set(item.row() for item in selected_items), reverse=True)
+
+        reply = QMessageBox.question(
+            self, "Delete Rows",
+            f"Delete {len(rows)} row(s)?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            self.model.delete_rows(rows)
+            self.refresh_table()
+
+    def delete_selected_columns(self):
+        """Delete all selected columns"""
+        selected_items = self.table.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, "Warning", "Please select columns to delete.")
+            return
+
+        # Get unique column numbers
+        cols = sorted(set(item.column() for item in selected_items), reverse=True)
+
+        reply = QMessageBox.question(
+            self, "Delete Columns",
+            f"Delete {len(cols)} column(s)?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            self.model.delete_columns(cols)
+            self.refresh_table()
+
+    def copy_selection(self):
+        """Copy selected cells to clipboard"""
+        selected_items = self.table.selectedItems()
+        if not selected_items:
+            return
+
+        # Get selection bounds
+        rows = sorted(set(item.row() for item in selected_items))
+        cols = sorted(set(item.column() for item in selected_items))
+
+        # Create 2D array of selected data
+        self.clipboard_data = []
+        for row in rows:
+            row_data = []
+            for col in cols:
+                value = self.model.get_value(row, col)
+                row_data.append(value)
+            self.clipboard_data.append(row_data)
+
+    def cut_selection(self):
+        """Cut selected cells to clipboard"""
+        selected_items = self.table.selectedItems()
+        if not selected_items:
+            return
+
+        # Copy first
+        self.copy_selection()
+
+        # Then clear
+        cells = [(item.row(), item.column()) for item in selected_items]
+        self.model.clear_cells(cells)
+        self.refresh_table()
+
+    def paste_selection(self):
+        """Paste clipboard data to selected cells"""
+        if not self.clipboard_data:
+            return
+
+        current_item = self.table.currentItem()
+        if not current_item:
+            return
+
+        start_row = current_item.row()
+        start_col = current_item.column()
+
+        self.model.save_state()
+
+        for i, row_data in enumerate(self.clipboard_data):
+            for j, value in enumerate(row_data):
+                row = start_row + i
+                col = start_col + j
+                if 0 <= row < self.model.row_count and 0 <= col < self.model.column_count:
+                    self.model.df.iloc[row, col] = value
+
+        self.model.modified = True
+        self.refresh_table()
+
+    def clear_selected_cells(self):
+        """Clear selected cells"""
+        selected_items = self.table.selectedItems()
+        if not selected_items:
+            return
+
+        cells = [(item.row(), item.column()) for item in selected_items]
+        self.model.clear_cells(cells)
+        self.refresh_table()
+
+    def fill_down(self):
+        """Fill down from top cell to selected cells"""
+        selected_items = self.table.selectedItems()
+        if not selected_items:
+            return
+
+        # Get selection bounds
+        rows = sorted(set(item.row() for item in selected_items))
+        cols = sorted(set(item.column() for item in selected_items))
+
+        if len(rows) < 2:
+            return
+
+        # For each column, fill from the first row to all others
+        for col in cols:
+            source_value = self.model.get_value(rows[0], col)
+            cells = [(row, col) for row in rows[1:]]
+            self.model.fill_cells(cells, source_value)
+
+        self.refresh_table()
+
+    def fill_right(self):
+        """Fill right from left cell to selected cells"""
+        selected_items = self.table.selectedItems()
+        if not selected_items:
+            return
+
+        # Get selection bounds
+        rows = sorted(set(item.row() for item in selected_items))
+        cols = sorted(set(item.column() for item in selected_items))
+
+        if len(cols) < 2:
+            return
+
+        # For each row, fill from the first column to all others
+        for row in rows:
+            source_value = self.model.get_value(row, cols[0])
+            cells = [(row, col) for col in cols[1:]]
+            self.model.fill_cells(cells, source_value)
+
+        self.refresh_table()
+
+    def find_replace_dialog(self):
+        """Show find and replace dialog"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Find and Replace")
+        dialog.setMinimumWidth(400)
+
+        layout = QVBoxLayout(dialog)
+
+        # Find text
+        find_layout = QHBoxLayout()
+        find_layout.addWidget(QLabel("Find:"))
+        find_input = QLineEdit()
+        find_layout.addWidget(find_input)
+        layout.addLayout(find_layout)
+
+        # Replace text
+        replace_layout = QHBoxLayout()
+        replace_layout.addWidget(QLabel("Replace:"))
+        replace_input = QLineEdit()
+        replace_layout.addWidget(replace_input)
+        layout.addLayout(replace_layout)
+
+        # Options
+        match_case_check = QCheckBox("Match case")
+        layout.addWidget(match_case_check)
+
+        whole_cell_check = QCheckBox("Match whole cell only")
+        layout.addWidget(whole_cell_check)
+
+        # Buttons
+        button_layout = QHBoxLayout()
+        replace_all_button = QPushButton("Replace All")
+        cancel_button = QPushButton("Cancel")
+        button_layout.addWidget(replace_all_button)
+        button_layout.addWidget(cancel_button)
+        layout.addLayout(button_layout)
+
+        def do_replace():
+            find_text = find_input.text()
+            replace_text = replace_input.text()
+
+            if not find_text:
+                QMessageBox.warning(dialog, "Warning", "Please enter text to find.")
+                return
+
+            count = self.model.find_replace(
+                find_text, replace_text,
+                match_case=match_case_check.isChecked(),
+                whole_cell=whole_cell_check.isChecked()
+            )
+
+            self.refresh_table()
+            QMessageBox.information(dialog, "Replace Complete",
+                                   f"Replaced {count} occurrence(s).")
+            dialog.accept()
+
+        replace_all_button.clicked.connect(do_replace)
+        cancel_button.clicked.connect(dialog.reject)
+
+        dialog.exec()
 
     def update_title(self):
         """Update window title"""
