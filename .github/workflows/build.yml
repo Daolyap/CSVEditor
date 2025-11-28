@@ -104,23 +104,5 @@ jobs:
     
     - name: Run model tests
       run: |
-        # Run just the data model tests (no GUI required)
-        python -c "
-import sys
-sys.path.insert(0, '.')
-# Import only the data model class
-exec(open('csv_editor.py').read().split('class CSVEditorWindow')[0])
-
-# Run basic tests
-model = CSVDataModel()
-model.new_csv(5, 3)
-assert model.row_count == 5
-assert model.column_count == 3
-model.set_value(0, 0, 'Test')
-assert model.get_value(0, 0) == 'Test'
-model.add_row()
-assert model.row_count == 6
-model.delete_row(0)
-assert model.row_count == 5
-print('All model tests passed!')
-"
+        # Run the data model tests (csv_model.py has no GUI dependency)
+        python test_csv_model.py

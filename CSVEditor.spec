@@ -14,6 +14,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('resources/icon.ico', 'resources'),
+        ('csv_model.py', '.'),
     ],
     hiddenimports=[
         'pandas',
@@ -22,6 +23,7 @@ a = Analysis(
         'PyQt6.QtCore',
         'PyQt6.QtWidgets',
         'PyQt6.QtGui',
+        'csv_model',
     ],
     hookspath=[],
     hooksconfig={},

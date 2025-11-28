@@ -20,7 +20,7 @@
     <Package Name="CSV Editor"
              Manufacturer="CSVEditor"
              Version="1.0.0.0"
-             UpgradeCode="12345678-1234-1234-1234-123456789012"
+             UpgradeCode="F4386CD5-5737-4230-B854-B20B67FEAE62"
              Scope="perMachine"
              Language="1033"
              Codepage="1252">
@@ -35,8 +35,8 @@
         <!-- Include default WiX UI -->
         <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER"/>
 
-        <!-- License agreement -->
-        <WixVariable Id="WixUILicenseRtf" Value="License.rtf"/>
+        <!-- License agreement - relative to installer directory -->
+        <WixVariable Id="WixUILicenseRtf" Value="$(sys.CURRENTDIR)License.rtf"/>
 
         <!-- Application icon for Add/Remove Programs -->
         <Icon Id="CSVEditorIcon" SourceFile="dist\CSVEditor\resources\icon.ico"/>
