@@ -5,7 +5,8 @@ import os
 # Add current directory to path
 sys.path.insert(0, os.path.dirname(__file__))
 
-from csv_editor import CSVDataModel
+# Import from the dedicated model module (no GUI dependency)
+from csv_model import CSVDataModel
 
 def test_csv_model():
     """Test the CSV data model"""
