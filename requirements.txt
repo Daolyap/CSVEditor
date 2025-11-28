@@ -1,2 +1,6 @@
+# Core dependencies
 PyQt6==6.7.0
 pandas==2.2.1
+
+# Optional: Build dependencies (uncomment for building executables)
+# pyinstaller>=6.0.0

@@ -1112,8 +1112,23 @@ class CSVEditorWindow(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("CSV Editor")
+    app.setOrganizationName("CSVEditor")
+    app.setApplicationVersion("1.0.0")
+    
     window = CSVEditorWindow()
     window.show()
+    
+    # Check if a file was passed as a command line argument
+    # This enables opening CSV files directly via file association
+    if len(sys.argv) > 1:
+        filepath = sys.argv[1]
+        if Path(filepath).exists() and Path(filepath).suffix.lower() == '.csv':
+            try:
+                window.model.load_csv(filepath)
+                window.refresh_table()
+            except Exception as e:
+                QMessageBox.critical(window, "Error", f"Failed to open file: {str(e)}")
+    
     sys.exit(app.exec())
 
 

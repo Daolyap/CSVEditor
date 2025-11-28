@@ -1,0 +1,126 @@
+name: Build Windows Application
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Run tests
+      run: python test_csv_model.py
+    
+    - name: Build application with PyInstaller
+      run: pyinstaller --clean CSVEditor.spec
+    
+    - name: Verify build
+      run: |
+        if (Test-Path "dist\CSVEditor\CSVEditor.exe") {
+          Write-Host "Build successful!"
+          Get-ChildItem -Path "dist\CSVEditor" -Recurse | Select-Object FullName, Length
+        } else {
+          Write-Host "Build failed - executable not found"
+          exit 1
+        }
+      shell: pwsh
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: CSVEditor-Windows
+        path: dist/CSVEditor/
+        retention-days: 30
+    
+    - name: Install WiX Toolset
+      if: startsWith(github.ref, 'refs/tags/')
+      run: dotnet tool install --global wix
+    
+    - name: Build MSI installer
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        cd installer
+        wix build -o CSVEditor.msi Product.wxs
+      shell: pwsh
+    
+    - name: Upload MSI artifact
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: actions/upload-artifact@v4
+      with:
+        name: CSVEditor-MSI
+        path: installer/CSVEditor.msi
+        retention-days: 30
+    
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          installer/CSVEditor.msi
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas numpy
+    
+    - name: Run model tests
+      run: |
+        # Run just the data model tests (no GUI required)
+        python -c "
+import sys
+sys.path.insert(0, '.')
+# Import only the data model class
+exec(open('csv_editor.py').read().split('class CSVEditorWindow')[0])
+
+# Run basic tests
+model = CSVDataModel()
+model.new_csv(5, 3)
+assert model.row_count == 5
+assert model.column_count == 3
+model.set_value(0, 0, 'Test')
+assert model.get_value(0, 0) == 'Test'
+model.add_row()
+assert model.row_count == 6
+model.delete_row(0)
+assert model.row_count == 5
+print('All model tests passed!')
+"
